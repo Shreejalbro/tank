@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Armored Assault: Final</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap');
+
+        :root {
+            --army-green: #4a5c38;
+            --army-dark: #2e3b23;
+            --danger: #8b0000;
+            --accent: #ffd700;
+            --glass: rgba(15, 15, 15, 0.95);
+        }
+
+        body {
+            margin: 0; overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: 'Black Ops One', cursive;
+            touch-action: none; user-select: none;
+            -webkit-user-select: none; color: white;
+        }
+
+        /* --- Menus --- */
+        .overlay-menu {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center; background: var(--glass);
+            padding: 2rem; border: 3px solid var(--army-green);
+            border-radius: 15px; box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            z-index: 100; width: 85%; max-width: 400px;
+        }
+
+        h1 { color: #8f9e78; font-size: 1.8rem; margin-top: 0; }
+        
+        .code-box {
+            font-size: 2.2rem; color: var(--accent);
+            background: #000; padding: 10px; margin: 15px 0;
+            border-radius: 8px; border: 2px dashed #444;
+            cursor: pointer; letter-spacing: 4px;
+        }
+
+        input {
+            width: 80%; padding: 12px; font-size: 1.2rem;
+            text-align: center; background: #2a2a2a;
+            border: 2px solid #444; color: white;
+            border-radius: 5px; margin-bottom: 10px;
+            font-family: monospace;
+        }
+
+        button {
+            width: 90%; padding: 14px; font-size: 1rem;
+            cursor: pointer; background: var(--army-green);
+            color: white; border: none; border-radius: 5px;
+            margin: 8px 0; font-family: 'Black Ops One', cursive;
+            box-shadow: 0 4px 0 var(--army-dark);
+            text-transform: uppercase;
+        }
+        button:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--army-dark); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn-return { background: #444; box-shadow: 0 4px 0 #222; }
+        .btn-quit { background: var(--danger); box-shadow: 0 4px 0 #500; }
+
+        /* --- Notification Popup --- */
+        #disconnect-modal {
+            display: none; position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; background: rgba(0,0,0,0.9);
+            z-index: 200; align-items: center; justify-content: center;
+            flex-direction: column;
+        }
+        #disconnect-msg {
+            color: var(--danger); font-size: 2rem; 
+            text-shadow: 0 0 10px red; margin-bottom: 20px; text-align: center;
+        }
+        #disconnect-timer { font-size: 4rem; color: white; }
+
+        /* --- HUD --- */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: none;
+        }
+
+        .hud-panel {
+            position: absolute; top: 10px; left: 10px;
+            padding: 12px; width: 180px;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(5px);
+            border-radius: 10px; pointer-events: auto;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .bar-bg { width: 100%; height: 8px; background: #333; margin: 4px 0 10px; border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; width: 100%; transition: width 0.3s ease; }
+        #hp-local { background: #4caf50; }
+        #hp-remote { background: #f44336; }
+
+        .ammo-wrap { display: flex; gap: 3px; margin-bottom: 0; }
+        .bullet { width: 8px; height: 14px; background: #333; border-radius: 1px; }
+        .bullet.active { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+
+        /* Microphone Button - Moved Outside HUD */
+        #mic-btn {
+            position: absolute; top: 135px; left: 10px; /* Below HUD panel */
+            width: 50px; height: 50px; border-radius: 50%;
+            background: rgba(0,0,0,0.6); border: 2px solid #555;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; cursor: pointer; pointer-events: auto;
+            backdrop-filter: blur(5px);
+        }
+        #mic-btn.on { background: #4caf50; border-color: white; color: white; }
+
+        #top-quit { position: absolute; top: 10px; right: 10px; width: auto; padding: 8px 15px; pointer-events: auto; }
+
+        /* --- Mobile Controls --- */
+        #mobile-controls {
+            display: none; position: absolute; bottom: 30px; left: 0; width: 100%;
+            pointer-events: none;
+        }
+        #joy-base {
+            position: absolute; left: 30px; bottom: 0;
+            width: 120px; height: 120px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%; pointer-events: auto;
+        }
+        #joy-stick {
+            position: absolute; top: 50%; left: 50%;
+            width: 50px; height: 50px; background: rgba(255,255,255,0.3);
+            border-radius: 50%; transform: translate(-50%, -50%);
+        }
+        #btn-fire {
+            position: absolute; right: 30px; bottom: 10px;
+            width: 80px; height: 80px; background: rgba(255,0,0,0.3);
+            border: 3px solid rgba(255,0,0,0.5); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: auto;
+        }
+
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+    <div id="disconnect-modal">
+        <div id="disconnect-msg">OPPONENT LEFT</div>
+        <div style="font-size: 1.2rem; margin-bottom:10px; opacity:0.8">RETURNING TO LOBBY</div>
+        <div id="disconnect-timer">3</div>
+    </div>
+
+    <div id="menu-main" class="overlay-menu">
+        <h1>ARMORED ASSAULT</h1>
+        <button onclick="showHost()">Host Game</button>
+        <div style="margin: 10px 0; opacity: 0.5;">- OR -</div>
+        <input type="text" id="join-id" placeholder="6-DIGIT CODE">
+        <button id="btn-join" onclick="joinGame()">Join Game</button>
+    </div>
+
+    <div id="menu-host" class="overlay-menu" style="display:none">
+        <h1>MATCH ROOM</h1>
+        <p>TAP CODE TO COPY</p>
+        <div id="code-display" class="code-box" onclick="copyCode()">...</div>
+        <p id="host-status">Waiting for opponent...</p>
+        <button class="btn-return" onclick="handleQuit()">Return Home</button>
+    </div>
+
+    <div id="menu-over" class="overlay-menu" style="display:none">
+        <h2 id="over-title">YOU WON</h2>
+        <div id="rematch-msg" style="color:var(--accent); font-size: 0.9rem; min-height: 20px; margin-bottom:10px;"></div>
+        <button id="btn-rematch" onclick="requestRematch()">Rematch</button>
+        <button class="btn-quit" onclick="handleQuit()">Quit</button>
+    </div>
+
+    <div id="ui-layer">
+        <button id="top-quit" class="btn-quit" onclick="handleQuit()">QUIT</button>
+        
+        <div class="hud-panel">
+            <div style="font-size:0.7rem">YOU</div>
+            <div class="bar-bg"><div id="hp-local" class="bar-fill"></div></div>
+            <div style="font-size:0.7rem">ENEMY</div>
+            <div class="bar-bg"><div id="hp-remote" class="bar-fill"></div></div>
+            <div id="ammo-count" class="ammo-wrap"></div>
+        </div>
+        <div id="mic-btn" onclick="toggleMic()">🎙</div>
+
+        <div id="mobile-controls">
+            <div id="joy-base"><div id="joy-stick"></div></div>
+            <div id="btn-fire" ontouchstart="fireBullet(event)">FIRE</div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+    <audio id="remote-audio" autoplay></audio>
+
+<script>
+    /* --- CONFIG & STATE --- */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const ui = document.getElementById('ui-layer');
+    
+    let peer, conn, localStream;
+    let isHost = false, gameActive = false;
+    let worldSize = { w: 2400, h: 2400 };
+    let obstacles = [], particles = [];
+    let myRematchReq = false, oppRematchReq = false;
+    
+    // Tank Radius is approx 25-30. Hitbox radius set to 45 for better hit reg.
+    const player = { x: 0, y: 0, angle: 0, hp: 100, ammo: 8, bullets: [], lastFire: 0, color: '#4caf50' };
+    const enemy = { x: -1000, y: -1000, angle: 0, hp: 100, bullets: [], color: '#f44336', dead: false };
+    const keys = {};
+
+    /* --- INITIALIZATION --- */
+    let groundPattern;
+    function createGround() {
+        const off = document.createElement('canvas');
+        off.width = 200; off.height = 200;
+        const octx = off.getContext('2d');
+        octx.fillStyle = '#3a4d2c';
+        octx.fillRect(0,0,200,200);
+        // Grass
+        for(let i=0; i<300; i++) {
+            octx.fillStyle = `rgba(40, 60, 20, ${Math.random()*0.4})`;
+            octx.fillRect(Math.random()*200, Math.random()*200, 2, 5);
+        }
+        // Small pebbles
+        for(let i=0; i<20; i++) {
+            octx.fillStyle = '#5a5a5a';
+            octx.beginPath();
+            octx.arc(Math.random()*200, Math.random()*200, Math.random()*2+1, 0, Math.PI*2);
+            octx.fill();
+        }
+        groundPattern = ctx.createPattern(off, 'repeat');
+    }
+
+    /* --- NETWORKING --- */
+    function showHost() {
+        document.getElementById('menu-main').style.display = 'none';
+        document.getElementById('menu-host').style.display = 'block';
+        isHost = true;
+        initPeer(Math.floor(100000 + Math.random() * 900000).toString());
+    }
+
+    function initPeer(id) {
+        if(peer) peer.destroy();
+        peer = new Peer(id);
+        
+        peer.on('open', (id) => { 
+            document.getElementById('code-display').innerText = id; 
+        });
+        
+        peer.on('connection', (c) => {
+            conn = c; 
+            if(isHost) {
+                document.getElementById('host-status').innerText = "Syncing World...";
+                
+                conn.on('open', () => { 
+                    genWorld(); // 1. Generate World
+                    
+                    // 2. Find Host Spawn
+                    const hostSpawn = getSafeSpawn(null);
+                    resetPlayer(hostSpawn.x, hostSpawn.y);
+
+                    // 3. Find Joiner Spawn (Far away from Host)
+                    const joinSpawn = getSafeSpawn(hostSpawn);
+                    
+                    // 4. Send Start Data
+                    conn.send({ 
+                        type: 'init', 
+                        world: obstacles, 
+                        startX: joinSpawn.x, 
+                        startY: joinSpawn.y 
+                    });
+
+                    // 5. Start Game
+                    start();
+                    initVoice();
+                });
+                setupConn();
+            }
+        });
+
+        peer.on('call', (c) => {
+            navigator.mediaDevices.getUserMedia({audio:true}).then(s => {
+                localStream = s; s.getAudioTracks()[0].enabled = false;
+                c.answer(s);
+                c.on('stream', rs => document.getElementById('remote-audio').srcObject = rs);
+            });
+        });
+        peer.on('disconnected', handleOpponentDisconnect);
+    }
+
+    function joinGame() {
+        const id = document.getElementById('join-id').value;
+        if(id.length < 6) return;
+        isHost = false;
+        document.getElementById('btn-join').innerText = "CONNECTING...";
+        
+        if(peer) peer.destroy();
+        peer = new Peer();
+        
+        peer.on('open', () => {
+            conn = peer.connect(id);
+            setupConn();
+        });
+    }
+
+    function setupConn() {
+        conn.on('data', d => {
+            if(d.type === 'init') { 
+                obstacles = d.world; 
+                resetPlayer(d.startX, d.startY);
+                start(); 
+                initVoice();
+            }
+            if(d.type === 'update') {
+                enemy.x = d.x; enemy.y = d.y; enemy.angle = d.angle; enemy.bullets = d.b;
+                if(!enemy.dead) enemy.hp = d.hp;
+            }
+            if(d.type === 'hit') takeDamage(10);
+            if(d.type === 'died') killEnemy();
+            if(d.type === 'rematch_req') {
+                oppRematchReq = true;
+                checkRematch();
+            }
+            if(d.type === 'quit') handleOpponentDisconnect();
+        });
+        
+        conn.on('close', handleOpponentDisconnect);
+        conn.on('error', (err) => alert("Connection Error: " + err));
+    }
+
+    /* --- WORLD & SPAWN LOGIC --- */
+    function genWorld() {
+        obstacles = [];
+        for(let i=0; i<35; i++) {
+            const r = 40 + Math.random() * 50;
+            const pts = [];
+            const segs = 6 + Math.floor(Math.random()*4);
+            for(let s=0; s<segs; s++){
+                const a = (s/segs) * Math.PI * 2;
+                const dist = r * (0.8 + Math.random()*0.4);
+                pts.push({x: Math.cos(a)*dist, y: Math.sin(a)*dist});
+            }
+            obstacles.push({
+                x: Math.random()*worldSize.w, y: Math.random()*worldSize.h, 
+                r: r, pts: pts, color: '#555'
+            });
+        }
+    }
+
+    // Get Spawn. If avoidPoint is provided, ensure we are far away.
+    function getSafeSpawn(avoidPoint) {
+        let safe = false;
+        let x, y;
+        let attempts = 0;
+        const minDistance = 1200; // Minimum distance between players
+
+        while(!safe && attempts < 200) {
+            attempts++;
+            x = 100 + Math.random() * (worldSize.w - 200);
+            y = 100 + Math.random() * (worldSize.h - 200);
+            
+            let isClean = true;
+            // 1. Check obstacles (60 radius buffer)
+            if(checkCol(x, y, 60)) isClean = false;
+
+            // 2. Check distance from other player if needed
+            if(avoidPoint && isClean) {
+                const dist = Math.hypot(x - avoidPoint.x, y - avoidPoint.y);
+                if(dist < minDistance) isClean = false;
+            }
+            
+            if(isClean) safe = true;
+        }
+        
+        if(!safe) { x = 200; y = 200; } // Fallback
+        return {x, y};
+    }
+
+    /* --- DISCONNECT & QUIT --- */
+    function handleQuit() {
+        if(conn) {
+            conn.send({type: 'quit'});
+            setTimeout(() => { conn.close(); }, 100);
+        }
+        location.reload();
+    }
+
+    let disconnectTriggered = false;
+    function handleOpponentDisconnect() {
+        if(disconnectTriggered || !gameActive) return;
+        disconnectTriggered = true;
+        gameActive = false;
+
+        const modal = document.getElementById('disconnect-modal');
+        const timerEl = document.getElementById('disconnect-timer');
+        modal.style.display = 'flex';
+        
+        let count = 3;
+        timerEl.innerText = count;
+
+        const interval = setInterval(() => {
+            count--;
+            timerEl.innerText = count;
+            if(count <= 0) {
+                clearInterval(interval);
+                location.reload();
+            }
+        }, 1000);
+    }
+
+    window.onbeforeunload = function() {
+        if(conn) conn.send({type: 'quit'});
+    };
+
+    /* --- REMATCH --- */
+    function requestRematch() {
+        const btn = document.getElementById('btn-rematch');
+        btn.disabled = true;
+        btn.innerText = "WAITING...";
+        myRematchReq = true;
+        if(conn) conn.send({type: 'rematch_req'});
+        checkRematch();
+    }
+
+    function checkRematch() {
+        const msg = document.getElementById('rematch-msg');
+        if (oppRematchReq && !myRematchReq) {
+            msg.innerText = "OPPONENT WANTS A REMATCH!";
+            msg.style.animation = "pulse 1s infinite";
+        }
+
+        if (myRematchReq && oppRematchReq) {
+            resetGameParams();
+            if (isHost) {
+                genWorld();
+                const hS = getSafeSpawn(null);
+                resetPlayer(hS.x, hS.y);
+                
+                const jS = getSafeSpawn(hS);
+                conn.send({ type: 'init', world: obstacles, startX: jS.x, startY: jS.y });
+                start();
+            } 
+        }
+    }
+
+    function resetGameParams() {
+        document.getElementById('menu-over').style.display = 'none';
+        document.getElementById('btn-rematch').disabled = false;
+        document.getElementById('btn-rematch').innerText = "Rematch";
+        document.getElementById('rematch-msg').innerText = "";
+        enemy.hp = 100; enemy.dead = false;
+        myRematchReq = false; oppRematchReq = false;
+    }
+
+    /* --- GAMEPLAY --- */
+    function resetPlayer(x, y) {
+        player.x = x; player.y = y; 
+        player.hp = 100; player.ammo = 8; 
+        player.angle = isHost ? 0 : Math.PI;
+    }
+
+    function start() {
+        document.querySelectorAll('.overlay-menu').forEach(m => m.style.display = 'none');
+        ui.style.display = 'block';
+        if(/Android|iPhone/i.test(navigator.userAgent)) document.getElementById('mobile-controls').style.display = 'block';
+        if(!groundPattern) createGround();
+        gameActive = true; 
+        requestAnimationFrame(loop);
+    }
+
+        function takeDamage(v) {
+        player.hp -= v;
+        if(player.hp <= 0) {
+            player.hp = 0; 
+            updateHUD(); // Force update to show 0 HP immediately
+            conn.send({type: 'died'});
+            gameOver(false);
+        } else {
+            updateHUD();
+        }
+    }
+
+    function killEnemy() {
+        enemy.hp = 0; 
+        enemy.dead = true;
+        updateHUD(); // Force update so enemy bar shows empty
+        
+        // Explosion particles
+        for(let i=0; i<30; i++) {
+            particles.push({
+                x: enemy.x, 
+                y: enemy.y, 
+                vx: (Math.random()-0.5)*10, 
+                vy: (Math.random()-0.5)*10, 
+                l: 40, 
+                c: '#f40'
+            });
+        }
+        // Small delay before menu for dramatic effect
+        setTimeout(() => gameOver(true), 1000);
+    }
+
+    function fireBullet(e) {
+        if(e) e.preventDefault();
+        const now = Date.now();
+        if(now - player.lastFire < 300 || player.ammo <= 0) return;
+        player.lastFire = now; player.ammo--;
+        player.bullets.push({
+            x: player.x + Math.cos(player.angle)*35, y: player.y + Math.sin(player.angle)*35,
+            vx: Math.cos(player.angle)*15, vy: Math.sin(player.angle)*15, l: 100
+        });
+    }
+
+    function loop() {
+        if(!gameActive) return;
+        update(); draw();
+        requestAnimationFrame(loop);
+    }
+
+    function update() {
+        let spd = 0, turn = 0;
+        if(keys['w']) spd = 4; if(keys['s']) spd = -3;
+        if(keys['a']) turn = -0.05; if(keys['d']) turn = 0.05;
+        if(joy.active) { player.angle = joy.angle; spd = 4 * joy.power; }
+
+        player.angle += turn;
+        const nx = player.x + Math.cos(player.angle)*spd;
+        const ny = player.y + Math.sin(player.angle)*spd;
+        // Collision Check for Movement (Radius 25)
+        if(!checkCol(nx, ny, 25)) { player.x = nx; player.y = ny; }
+
+        player.bullets.forEach((b, i) => {
+            b.x += b.vx; b.y += b.vy; b.l--;
+            
+            // Wall Hit
+            if(checkCol(b.x, b.y, 5)) b.l = 0;
+            
+            // Enemy Hit (Radius increased to 45 for better registration)
+            if(Math.hypot(b.x - enemy.x, b.y - enemy.y) < 45 && !enemy.dead) { 
+                b.l = 0; 
+                conn.send({type:'hit'}); 
+            }
+            
+            if(b.l <= 0) player.bullets.splice(i, 1);
+        });
+
+        if(conn) conn.send({type:'update', x: player.x, y: player.y, angle: player.angle, hp: player.hp, b: player.bullets});
+        if(player.ammo < 8 && Math.random() < 0.01) player.ammo++;
+    }
+
+    function checkCol(x, y, r) {
+        if(x < 0 || x > worldSize.w || y < 0 || y > worldSize.h) return true;
+        for(let o of obstacles) { if(Math.hypot(x - o.x, y - o.y) < o.r + r) return true; }
+        // Simple tank collision check (local player vs enemy ghost)
+        if(!enemy.dead && Math.hypot(x - enemy.x, y - enemy.y) < 50) return true;
+        return false;
+    }
+
+    function draw() {
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        let cx = Math.max(0, Math.min(player.x - canvas.width/2, worldSize.w - canvas.width));
+        let cy = Math.max(0, Math.min(player.y - canvas.height/2, worldSize.h - canvas.height));
+
+        ctx.save(); ctx.translate(-cx, -cy);
+        ctx.fillStyle = groundPattern; ctx.fillRect(0,0,worldSize.w, worldSize.h);
+
+        obstacles.forEach(o => {
+            ctx.fillStyle = o.color; ctx.beginPath();
+            ctx.moveTo(o.x + o.pts[0].x, o.y + o.pts[0].y);
+            o.pts.forEach(p => ctx.lineTo(o.x + p.x, o.y + p.y));
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+        });
+
+        drawTank(player); 
+        if(!enemy.dead) drawTank(enemy);
+
+        ctx.fillStyle = '#ffd700';
+        [...player.bullets, ...enemy.bullets].forEach(b => {
+            ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
+        });
+
+        particles.forEach((p, i) => {
+            ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+            p.x += p.vx; p.y += p.vy; p.l--; if(p.l <= 0) particles.splice(i, 1);
+        });
+
+        ctx.restore(); 
+        updateHUD();
+    }
+
+    function drawTank(t) {
+        ctx.save(); ctx.translate(t.x, t.y); ctx.rotate(t.angle);
+        ctx.fillStyle = t.color; ctx.fillRect(-25, -20, 50, 40);
+        ctx.fillStyle = '#222'; ctx.fillRect(-30, -22, 60, 8); ctx.fillRect(-30, 14, 60, 8);
+        ctx.fillRect(0, -4, 40, 8); ctx.beginPath(); ctx.arc(0,0,12,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+
+    function updateHUD() {
+        document.getElementById('hp-local').style.width = player.hp + '%';
+        document.getElementById('hp-remote').style.width = enemy.hp + '%';
+        const container = document.getElementById('ammo-count');
+        container.innerHTML = '';
+        for(let i=0; i<8; i++) {
+            const b = document.createElement('div');
+            b.className = 'bullet' + (i < player.ammo ? ' active' : '');
+            container.appendChild(b);
+        }
+        if(!enemy.dead) drawTracker();
+    }
+
+    function drawTracker() {
+        const dx = enemy.x - player.x, dy = enemy.y - player.y;
+        const angle = Math.atan2(dy, dx);
+        ctx.save(); ctx.translate(canvas.width/2 + Math.cos(angle)*80, canvas.height/2 + Math.sin(angle)*80);
+        ctx.rotate(angle); ctx.fillStyle = 'rgba(255,0,0,0.5)';
+        ctx.beginPath(); ctx.moveTo(10,0); ctx.lineTo(-5,7); ctx.lineTo(-5,-7); ctx.fill();
+        ctx.restore();
+    }
+
+    function gameOver(win) {
+        gameActive = false; document.getElementById('menu-over').style.display = 'block';
+        const title = document.getElementById('over-title');
+        title.innerText = win ? "YOU WON" : "YOU LOST";
+        title.style.color = win ? "#4caf50" : "#f44336";
+    }
+
+    /* --- UTILS --- */
+    function initVoice() {
+        navigator.mediaDevices.getUserMedia({audio:true}).then(s => {
+            localStream = s; localStream.getAudioTracks()[0].enabled = false;
+            const c = peer.call(conn.peer, s);
+            c.on('stream', rs => document.getElementById('remote-audio').srcObject = rs);
+        }).catch(e => console.log("Mic blocked/Unavailable"));
+    }
+
+    function toggleMic() {
+        if(!localStream) return;
+        const state = localStream.getAudioTracks()[0].enabled;
+        localStream.getAudioTracks()[0].enabled = !state;
+        document.getElementById('mic-btn').classList.toggle('on', !state);
+    }
+
+    function copyCode() {
+        const code = document.getElementById('code-display').innerText;
+        navigator.clipboard.writeText(code).then(() => alert("Code Copied!"));
+    }
+
+    window.onkeydown = e => keys[e.key.toLowerCase()] = true;
+    window.onkeyup = e => keys[e.key.toLowerCase()] = false;
+
+    // Mobile Joy
+    const joy = { active: false, angle: 0, power: 0 };
+    const jBase = document.getElementById('joy-base'), jStick = document.getElementById('joy-stick');
+    jBase.addEventListener('touchstart', (e) => { joy.active = true; handleJoy(e); });
+    jBase.addEventListener('touchmove', handleJoy);
+    jBase.addEventListener('touchend', () => { joy.active = false; jStick.style.left = '50%'; jStick.style.top = '50%'; });
+
+    function handleJoy(e) {
+        if(!joy.active) return;
+        const touch = e.touches[0], rect = jBase.getBoundingClientRect();
+        const dx = touch.clientX - (rect.left + 60), dy = touch.clientY - (rect.top + 60);
+        const dist = Math.min(60, Math.hypot(dx, dy));
+        joy.angle = Math.atan2(dy, dx); joy.power = dist / 60;
+        jStick.style.left = 50 + (Math.cos(joy.angle) * joy.power * 50) + '%';
+        jStick.style.top = 50 + (Math.sin(joy.angle) * joy.power * 50) + '%';
+    }
+</script>
+</body>
+</html>
