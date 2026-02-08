@@ -6,17 +6,17 @@
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Armored Assaultl 🪖</title>
-      <link rel="icon" href="tankLogo.png">
-    <meta property="og:title"
-        content="Armored Assault 🪖" />
-    <meta property="og:image"
-        content="tankLogo.png" />
-    <meta property="og:description"
-        content="Multiplayer - Tank War Game" />
-    <meta property="og:url"
-        content="https://tank-online.vercel.app" />
-    <meta property="og:type"
-        content="website" />
+  <link rel="icon" href="tankLogo.png">
+  <meta property="og:title"
+    content="Armored Assault 🪖" />
+  <meta property="og:image"
+    content="tankLogo.png" />
+  <meta property="og:description"
+    content="Multiplayer - Tank War Game" />
+  <meta property="og:url"
+    content="https://tank-online.vercel.app" />
+  <meta property="og:type"
+    content="website" />
   <script
     src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js">
   </script>
@@ -44,7 +44,6 @@
       transition: filter 0.1s;
     }
     
-    /* --- FX Animations --- */
     @keyframes shake-blur {
       0% {
         transform: translate(1px, 1px) rotate(0deg);
@@ -285,7 +284,9 @@
       height: 12px;
       text-transform: uppercase;
     }
-    
+    .ammo-status.reload{
+      animation:blink 0.5s linear infinite;
+    }
     @keyframes bullet-pulse {
       0% {
         opacity: 1;
@@ -532,253 +533,190 @@
       .webkitAudioContext)();
     
     const SoundFX = {
-      shoot: () => {
-        if (audioCtx
-          .state ===
-          'suspended')
-          audioCtx
+      // Helper: Calculate volume based on distance (0 to 1)
+      getVol: (x, y) => {
+        if (x === null || y ===
+          null)
+      return 1.0; // Local sound = Max volume
+        
+        // Calculate distance between sound source and player
+        const dist = Math.hypot(x -
+          player.x, y - player.y);
+        const maxDist =
+        2000; // Sound fades out completely at 2000px
+        
+        let vol = 1 - (dist /
+          maxDist);
+        return Math.max(0,
+        vol); // Ensure volume never goes below 0
+      },
+      
+      shoot: (x = null, y = null) => {
+        if (audioCtx.state ===
+          'suspended') audioCtx
           .resume();
-        const
-          bufferSize =
-          audioCtx
-          .sampleRate *
-          0.5;
-        const buffer =
-          audioCtx
-          .createBuffer(
-            1,
-            bufferSize,
-            audioCtx
-            .sampleRate
-          );
-        const data =
-          buffer
-          .getChannelData(
-            0);
-        for (let i =
-            0; i <
-          bufferSize; i++
-        ) {
-          data[i] =
-            Math
-            .random() *
+        
+        const vol = SoundFX.getVol(
+          x, y);
+        if (vol <= 0)
+      return; // Don't play if too far away
+        
+        const bufferSize = audioCtx
+          .sampleRate * 0.5;
+        const buffer = audioCtx
+          .createBuffer(1,
+            bufferSize, audioCtx
+            .sampleRate);
+        const data = buffer
+          .getChannelData(0);
+        
+        for (let i = 0; i <
+          bufferSize; i++) {
+          data[i] = Math.random() *
             2 - 1;
         }
-        const noise =
-          audioCtx
+        
+        const noise = audioCtx
           .createBufferSource();
-        noise.buffer =
-          buffer;
-        const filter =
-          audioCtx
+        noise.buffer = buffer;
+        
+        const filter = audioCtx
           .createBiquadFilter();
-        filter.type =
-          'lowpass';
+        filter.type = 'lowpass';
         filter.frequency
-          .setValueAtTime(
-            1000,
-            audioCtx
-            .currentTime
-          );
+          .setValueAtTime(1000,
+            audioCtx.currentTime);
         filter.frequency
           .exponentialRampToValueAtTime(
-            50,
-            audioCtx
-            .currentTime +
-            0.3);
-        const gain =
-          audioCtx
+            50, audioCtx
+            .currentTime + 0.3);
+        
+        const gain = audioCtx
           .createGain();
-        gain.gain
-          .setValueAtTime(
-            2.5,
-            audioCtx
-            .currentTime
-          );
+        // Base volume is 2.5, multiplied by our distance factor
+        gain.gain.setValueAtTime(
+          2.5 * vol, audioCtx
+          .currentTime);
         gain.gain
           .exponentialRampToValueAtTime(
-            0.01,
-            audioCtx
-            .currentTime +
-            0.3);
-        noise.connect(
-          filter);
-        filter.connect(
-          gain);
-        gain.connect(
-          audioCtx
-          .destination
-        );
+            0.01, audioCtx
+            .currentTime + 0.3);
+        
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx
+          .destination);
         noise.start();
       },
-      hit: () => {
-        if (audioCtx
-          .state ===
-          'suspended')
-          audioCtx
+      
+      hit: (x = null, y = null) => {
+        if (audioCtx.state ===
+          'suspended') audioCtx
           .resume();
-        const t =
-          audioCtx
+        
+        const vol = SoundFX.getVol(
+          x, y);
+        if (vol <= 0) return;
+        
+        const t = audioCtx
           .currentTime;
-        const freqs = [
-          800,
-          2240,
+        const freqs = [800, 2240,
           3600
         ];
-        freqs.forEach((
-          f, i
-        ) => {
-          const
-            osc =
-            audioCtx
+        
+        freqs.forEach((f, i) => {
+          const osc = audioCtx
             .createOscillator();
-          const
-            gain =
-            audioCtx
+          const gain = audioCtx
             .createGain();
-          osc.type =
-            i ===
-            1 ?
-            'triangle' :
-            'sine';
+          
+          osc.type = i === 1 ?
+            'triangle' : 'sine';
           osc.frequency
-            .setValueAtTime(
-              f,
-              t
-            );
-          const
-            vol =
-            i ===
-            0 ?
-            0.1 :
-            0.025;
+            .setValueAtTime(f,
+              t);
+          
+          const baseVol = i ===
+            0 ? 0.1 : 0.025;
           gain.gain
             .setValueAtTime(
-              vol,
-              t
-            );
+              baseVol * vol, t);
           gain.gain
             .exponentialRampToValueAtTime(
-              0.001,
-              t +
-              0.15
-            );
-          osc.connect(
-            gain
-          );
-          gain.connect(
-            audioCtx
-            .destination
-          );
-          osc
-            .start();
-          osc.stop(
-            t +
-            0.15
-          );
+              0.001, t + 0.15);
+          
+          osc.connect(gain);
+          gain.connect(audioCtx
+            .destination);
+          osc.start();
+          osc.stop(t + 0.15);
         });
       },
+      
       explode: () => {
-        if (audioCtx
-          .state ===
-          'suspended')
-          audioCtx
+        // Explosion is always loud (global event)
+        if (audioCtx.state ===
+          'suspended') audioCtx
           .resume();
-        const t =
-          audioCtx
+        const t = audioCtx
           .currentTime;
-        const osc =
-          audioCtx
-          .createOscillator();
-        const oscGain =
-          audioCtx
-          .createGain();
-        osc.type =
-          'sawtooth';
-        osc.frequency
-          .setValueAtTime(
-            60, t);
-        osc.frequency
-          .exponentialRampToValueAtTime(
-            10, t +
-            1.2);
-        oscGain.gain
-          .setValueAtTime(
-            3.0, t);
-        oscGain.gain
-          .exponentialRampToValueAtTime(
-            0.01,
-            t + 1.2
-          );
-        osc.connect(
-          oscGain);
-        oscGain.connect(
-          audioCtx
-          .destination
-        );
-        osc.start();
-        osc.stop(t +
-          1.2);
         
-        const
-          bufferSize =
-          audioCtx
-          .sampleRate *
-          1.5;
-        const buffer =
-          audioCtx
-          .createBuffer(
-            1,
-            bufferSize,
-            audioCtx
-            .sampleRate
-          );
-        const data =
-          buffer
-          .getChannelData(
-            0);
-        for (let i =
-            0; i <
-          bufferSize; i++
-        ) data[i] =
-          Math
-          .random() *
-          2 - 1;
-        const noise =
-          audioCtx
-          .createBufferSource();
-        noise.buffer =
-          buffer;
-        const filter =
-          audioCtx
-          .createBiquadFilter();
-        filter.type =
-          'lowpass';
-        filter.frequency
-          .setValueAtTime(
-            600, t);
-        const nGain =
-          audioCtx
+        // ... (Your existing explode logic remains the same) ...
+        const osc = audioCtx
+          .createOscillator();
+        const oscGain = audioCtx
           .createGain();
-        nGain.gain
-          .setValueAtTime(
-            2.5, t);
+        osc.type = 'sawtooth';
+        osc.frequency
+          .setValueAtTime(60, t);
+        osc.frequency
+          .exponentialRampToValueAtTime(
+            10, t + 1.2);
+        oscGain.gain.setValueAtTime(
+          3.0, t);
+        oscGain.gain
+          .exponentialRampToValueAtTime(
+            0.01, t + 1.2);
+        osc.connect(oscGain);
+        oscGain.connect(audioCtx
+          .destination);
+        osc.start();
+        osc.stop(t + 1.2);
+        
+        const bufferSize = audioCtx
+          .sampleRate * 1.5;
+        const buffer = audioCtx
+          .createBuffer(1,
+            bufferSize, audioCtx
+            .sampleRate);
+        const data = buffer
+          .getChannelData(0);
+        for (let i = 0; i <
+          bufferSize; i++) data[i] =
+          Math.random() * 2 - 1;
+        const noise = audioCtx
+          .createBufferSource();
+        noise.buffer = buffer;
+        const filter = audioCtx
+          .createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency
+          .setValueAtTime(600, t);
+        const nGain = audioCtx
+          .createGain();
+        nGain.gain.setValueAtTime(
+          2.5, t);
         nGain.gain
           .exponentialRampToValueAtTime(
-            0.01,
-            t + 1.2
-          );
-        noise.connect(
-          filter);
-        filter.connect(
-          nGain);
-        nGain.connect(
-          audioCtx
-          .destination
-        );
+            0.01, t + 1.2);
+        noise.connect(filter);
+        filter.connect(nGain);
+        nGain.connect(audioCtx
+          .destination);
         noise.start();
       }
     };
+    
     
     /* --- CONFIG & STATE --- */
     const canvas = document
@@ -911,7 +849,7 @@
               'host-status'
             )
             .innerText =
-            "Syncing World...";
+            "Generating World...";
           conn.on('open',
             () => {
               genWorld
@@ -1016,65 +954,53 @@
     
     function setupConn() {
       conn.on('data', d => {
-        if (d.type ===
-          'init') {
-          obstacles =
-            d.world;
-          resetPlayer(
-            d
-            .startX,
-            d
-            .startY
-          );
+        if (d.type === 'init') {
+          obstacles = d.world;
+          resetPlayer(d.startX, d
+            .startY);
           start();
-          setupAudio
-            ();
+          setupAudio();
         }
-        if (d.type ===
-          'update') {
-          enemy.x = d
-            .x;
-          enemy.y = d
-            .y;
-          enemy
-            .angle =
-            d.angle;
-          enemy
-            .bullets =
-            d.b;
-          if (!enemy
-            .dead)
-            enemy
-            .hp = d
-            .hp;
+        
+        if (d.type === 'update') {
+          enemy.x = d.x;
+          enemy.y = d.y;
+          enemy.angle = d.angle;
+          enemy.bullets = d.b;
+          if (!enemy.dead) enemy
+            .hp = d.hp;
         }
-        if (d.type ===
-          'hit')
-          takeDamage(
-            10);
-        if (d.type ===
-          'died')
+        
+        
+        if (d.type === 'fire') {
+          SoundFX.shoot(d.x, d.y);
+        }
+        
+        if (d.type === 'hit') {
+          takeDamage(10);
+          SoundFX.hit(player.x,
+            player.y);
+        }
+        
+        if (d.type === 'died')
           killEnemy();
+        
         if (d.type ===
-          'rematch_req'
-        ) {
-          oppRematchReq
-            = true;
-          checkRematch
-            ();
+          'rematch_req') {
+          oppRematchReq = true;
+          checkRematch();
         }
-        if (d.type ===
-          'quit')
+        
+        if (d.type === 'quit')
           handleOpponentDisconnect();
       });
+      
       conn.on('close',
-        handleOpponentDisconnect
-      );
-      conn.on('error', (err) =>
-        console.log(
-          "Conn Error: " +
-          err));
+        handleOpponentDisconnect);
+      conn.on('error', (err) => console
+        .log("Conn Error: " + err));
     }
+    
     
     function setupAudio() {
       navigator.mediaDevices
@@ -1480,31 +1406,34 @@
       if (e) e.preventDefault();
       const now = Date.now();
       if (now - player.lastFire <
-        FIRE_DELAY || player
-        .ammo <= 0) return;
+        FIRE_DELAY || player.ammo <= 0)
+        return;
+      
       player.lastFire = now;
       player.ammo--;
       player.lastReload = now;
+      
+      // 1. Play sound locally (no arguments = max volume)
       SoundFX.shoot();
+      
+      // 2. Send 'fire' event to network with current position
+      if (conn) {
+        conn.send({
+          type: 'fire',
+          x: player.x,
+          y: player.y
+        });
+      }
+      
       player.bullets.push({
-        x: player.x +
-          Math.cos(
-            player
-            .angle
-          ) * 35,
-        y: player.y +
-          Math.sin(
-            player
-            .angle
-          ) * 35,
-        vx: Math.cos(
-          player
-          .angle
-        ) * 15,
-        vy: Math.sin(
-          player
-          .angle
-        ) * 15,
+        x: player.x + Math.cos(
+          player.angle) * 35,
+        y: player.y + Math.sin(
+          player.angle) * 35,
+        vx: Math.cos(player.angle) *
+          15,
+        vy: Math.sin(player.angle) *
+          15,
         l: 100
       });
     }
@@ -1618,7 +1547,7 @@
       // Reload logic
       if (player.ammo <
         MAX_AMMO
-      ) { 
+      ) {
         if (Date.now() - player
           .lastReload >
           RELOAD_TIME) {
@@ -1801,7 +1730,11 @@
       statusText.innerText =
         isReloading ? "Reloading..." :
         "Full Ammo";
-      
+      if(isReloading){
+        statusText.classList.add('reload')
+      }else{
+        statusText.classList.remove('reload')
+      }
       for (let i = 0; i <
         MAX_AMMO; i++) {
         const b = document
