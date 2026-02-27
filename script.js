@@ -361,7 +361,25 @@
     
     function initPeer(id) {
       if (peer) peer.destroy();
-      peer = new Peer(id);
+      const peerConfig = {
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            {
+              urls: 'turn:staticauth.openrelay.metered.ca:80',
+              username: 'openrelayproject',
+              credential: 'openrelayprojectsecret'
+            },
+            {
+              urls: 'turn:staticauth.openrelay.metered.ca:443',
+              username: 'openrelayproject',
+              credential: 'openrelayprojectsecret'
+            }
+          ]
+        }
+      };
+      
+      peer = new Peer(id, peerConfig);
       peer.on('open', (id) => {
         document
           .getElementById(
@@ -491,7 +509,7 @@
           resetPlayer(d.startX, d
             .startY);
           resetGameParams
-        (); // This is the key call
+            (); // This is the key call
           start();
           setupAudio();
         }
