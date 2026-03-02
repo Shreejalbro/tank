@@ -383,7 +383,7 @@
             }
           ],
           // FORCE RELAY: if NAT is the issue.
-          iceTransportPolicy: 'relay' 
+          //iceTransportPolicy: 'relay' 
         }
       };
       
