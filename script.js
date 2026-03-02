@@ -361,25 +361,49 @@
     
     function initPeer(id) {
       if (peer) peer.destroy();
+      
       const peerConfig = {
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             {
-              urls: 'turn:staticauth.openrelay.metered.ca:80',
+              urls: 'turn:openrelay.metered.ca:80',
               username: 'openrelayproject',
               credential: 'openrelayprojectsecret'
             },
             {
-              urls: 'turn:staticauth.openrelay.metered.ca:443',
+              urls: 'turn:openrelay.metered.ca:443',
+              username: 'openrelayproject',
+              credential: 'openrelayprojectsecret'
+            },
+            {
+              urls: 'turn:openrelay.metered.ca:443?transport=tcp',
               username: 'openrelayproject',
               credential: 'openrelayprojectsecret'
             }
-          ]
+          ],
+          // FORCE RELAY: if NAT is the issue.
+          // iceTransportPolicy: 'relay' 
         }
       };
       
       peer = new Peer(id, peerConfig);
+      peer.on('error', (err) => {
+        console.error(
+          "PeerJS Error Type:",
+          err.type);
+        if (err.type ===
+          'unavailable-id') {
+          alert(
+          "ID already taken!");
+        } else if (err.type ===
+          'network') {
+          alert(
+            "Network blocked the P2P connection. Try a different Wi-Fi or check TURN settings."
+            );
+        }
+      });
+      
       peer.on('open', (id) => {
         document
           .getElementById(
