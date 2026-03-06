@@ -1,4 +1,4 @@
-    /* --- AUDIO SYSTEM --- */
+    /* --- AUDIO SYSTEM (Web Audio API) --- */
     const audioCtx = new(window
       .AudioContext || window
       .webkitAudioContext)();
@@ -273,7 +273,7 @@
       x: 0,
       y: 0,
       angle: 0,
-      turretAngle: 0, // NEW: Tracks the nozzle direction
+      turretAngle: 0,
       hp: 100,
       ammo: MAX_AMMO,
       bullets: [],
@@ -361,32 +361,25 @@
     
     function initPeer(id) {
       if (peer) peer.destroy();
-      
       const peerConfig = {
         config: {
           iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            {
-              urls: 'turn:openrelay.metered.ca:80',
-              username: 'openrelayproject',
-              credential: 'openrelayprojectsecret'
-            },
-            {
-              urls: 'turn:openrelay.metered.ca:443',
-              username: 'openrelayproject',
-              credential: 'openrelayprojectsecret'
-            },
-            {
-              urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-              username: 'openrelayproject',
-              credential: 'openrelayprojectsecret'
-            }
-          ],
-          // FORCE RELAY: if NAT is the issue.
-          //iceTransportPolicy: 'relay' 
+          {
+            urls: 'stun:stun.l.google.com:19302'
+          },
+          {
+            urls: [
+              'turn:openrelay.metered.ca:80',
+              'turn:openrelay.metered.ca:443',
+              'turn:openrelay.metered.ca:443?transport=tcp'
+            ],
+            username: 'openrelayproject',
+            credential: 'openrelayprojectsecret'
+          }],
+          // REMOVED iceTransportPolicy: 'relay' 
+          // This allows PeerJS to choose the BEST path (STUN first, TURN as backup)
         }
       };
-      
       peer = new Peer(id, peerConfig);
       peer.on('error', (err) => {
         console.error(
@@ -395,12 +388,12 @@
         if (err.type ===
           'unavailable-id') {
           alert(
-          "ID already taken!");
+            "ID already taken!");
         } else if (err.type ===
           'network') {
           alert(
-            "Network blocked the P2P connection. Try a different Wi-Fi or check TURN settings."
-            );
+            "Network blocked the P2P connection. Try a different Wi-Fi."
+          );
         }
       });
       
@@ -492,42 +485,66 @@
     
     function joinGame() {
       const id = document
-        .getElementById(
-          'join-id').value;
-      if (id.length < 6) return;
+        .getElementById('join-id')
+        .value;
+      if (id.length != 6){
+        document.getElementById('join-id').focus()
+        return;
+      }
+      
       isHost = false;
-      document.getElementById(
-          'btn-join')
-        .innerText =
+      const joinBtn = document
+        .getElementById('btn-join');
+      joinBtn.innerText =
         "CONNECTING...";
+      
       if (peer) peer.destroy();
+      const connectionTimeout =
+        setTimeout(() => {
+          joinBtn.innerText =
+            "JOIN GAME";
+          alert(
+            "Connection timed out. The host took too long to respond."
+            );
+          if (peer) peer.destroy();
+        }, 20000);
+      
       peer = new Peer();
-      peer.on('open', () => {
-        conn = peer
-          .connect(
-            id);
-        setupConn();
+      peer.on('error', (err) => {
+        clearTimeout(
+          connectionTimeout
+          ); // Stop the timer
+        joinBtn.innerText =
+          "JOIN GAME";
+        alert("Error Connecting: " +
+          err.type);
       });
+      peer.on('open', () => {
+        conn = peer.connect(id);
+        setupConn();
+        conn.on('open', () => {
+          clearTimeout(
+            connectionTimeout);
+          joinBtn.innerText =
+            "CONNECTED";
+        });
+      });
+      
       peer.on('call', (c) => {
-        c.answer(
-          localStream
-        );
-        c.on('stream',
-          rs => {
-            document
-              .getElementById(
-                'remote-audio'
-              )
-              .srcObject =
-              rs;
-          });
+        c.answer(localStream);
+        c.on('stream', rs => {
+          document
+            .getElementById(
+              'remote-audio')
+            .srcObject = rs;
+        });
       });
     }
+    
     
     function setupConn() {
       conn.on('data', d => {
         
-        // Inside setupConn(), look for d.type === 'init'
         if (d.type === 'init') {
           obstacles = d.world;
           resetPlayer(d.startX, d
@@ -537,8 +554,6 @@
           start();
           setupAudio();
         }
-        
-        
         
         if (d.type ===
           'spawn_powerup') powerups
@@ -551,7 +566,7 @@
         if (d.type === 'rock_hit') {
           damageRock(d.id, d.dmg, d
             .bx, d.by, false
-          ); // false = not local, prevents infinite loop
+          );
         }
         
         if (d.type === 'hit') {
@@ -929,8 +944,7 @@
     
     function handleQuit() {
       if (conn) {
-        conn
-          .send({ type: 'quit' });
+        conn.send({ type: 'quit' });
         setTimeout(() => {
             conn
               .close();
@@ -1152,6 +1166,7 @@
         player.hp = 0;
         player.color = '#333333';
         updateHUD();
+        ui.style.display = 'none'
         conn.send({ type: 'died' });
         triggerBlast(player.x, player
           .y);
@@ -1168,6 +1183,7 @@
       enemy.hp = 0;
       enemy.dead = true;
       enemy.color = '#333333';
+      ui.style.display = 'none'
       updateHUD();
       triggerBlast(enemy.x, enemy
         .y);
@@ -1957,8 +1973,14 @@
         .getElementById(
           'code-display')
         .innerText;
+      if (code == '...') return;
       navigator.clipboard
         .writeText(code);
+        document.getElementById('showCopied').innerHTML = "CODE COPIED!"
+      setInterval(()=>{
+        document.getElementById('showCopied').innerHTML = 'TAP CODE TO COPY'
+      },1500)
+      
     }
     
     window.onkeydown = e => keys[e
