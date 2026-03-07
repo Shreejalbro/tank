@@ -366,6 +366,15 @@
     
     function initPeer(id) {
       if (peer) peer.destroy();
+      if (localStream) {
+        localStream.getTracks().forEach(
+          track => track.stop());
+        localStream = null;
+        const micBtn = document
+          .getElementById('mic-btn');
+        if (micBtn) micBtn.classList
+          .remove('on');
+      }
       const peerConfig = {
         config: {
           iceServers: [
@@ -393,119 +402,125 @@
             credential: "Tu0cfABPhjoPT4Ts",
           }, ],
           // REMOVED iceTransportPolicy: 'relay' 
-          // This allows PeerJS to choose the BEST path (STUN first, TURN as backup)
-        }
-      };
-      peer = new Peer(id, peerConfig);
-      peer.on('error', (err) => {
-        console.error(
-          "PeerJS Error Type:",
-          err.type);
-        if (err.type ===
-          'unavailable-id') {
-          alert(
-            "ID already taken!");
-        } else if (err.type ===
-          'network') {
-          alert(
-            "Network blocked the P2P connection. Try a different Wi-Fi."
-          );
-        }
-      });
+          iceCandidatePoolSize: 10,
+        },
+        debug: 1
+      }
+    peer = new Peer(id, peerConfig);
+    peer.on('error', (err) => {
+      console.error(
+        "PeerJS Error Type:",
+        err.type);
+      if (err.type ===
+        'unavailable-id') {
+        alert(
+          "ID already taken!");
+      } else if (err.type ===
+        'network') {
+        alert(
+          "Network blocked the P2P connection. Try a different Wi-Fi."
+        );
+      }
+    });
+    
+    peer.on('open', (id) => {
+      document
+        .getElementById(
+          'code-display'
+        )
+        .innerText =
+        id;
+    });
+    peer.on('connection', (
+      c) => {
+      conn = c;
       
-      peer.on('open', (id) => {
+      if (conn.dataChannel) {
+        conn.dataChannel
+          .priority = 'high';
+      }
+      if (isHost) {
         document
           .getElementById(
-            'code-display'
+            'host-status'
           )
           .innerText =
-          id;
-      });
-      peer.on('connection', (
-        c) => {
-        conn = c;
-        if (isHost) {
-          document
-            .getElementById(
-              'host-status'
-            )
-            .innerText =
-            "Generating World...";
-          conn.on('open',
-            () => {
-              genWorld
-                ();
-              const
-                hostSpawn =
-                getSafeSpawn(
-                  null
-                );
-              resetPlayer
-                (hostSpawn
-                  .x,
-                  hostSpawn
-                  .y
-                );
-              const
-                joinSpawn =
-                getSafeSpawn(
-                  hostSpawn
-                );
-              conn.send({
-                type: 'init',
-                world: obstacles,
-                startX: joinSpawn
-                  .x,
-                startY: joinSpawn
-                  .y
-              });
-              start
-                ();
-              setupAudio().then((
-                stream) => {
-                if (stream &&
-                  conn && conn
-                  .peer) {
-                  const c =
-                    peer.call(
-                      conn
-                      .peer,
-                      stream);
-                  handleIncomingStream
-                    (
-                      c
-                    ); // Use the same helper function from above
-                }
-              });
+          "Generating World...";
+        conn.on('open',
+          () => {
+            genWorld
+              ();
+            const
+              hostSpawn =
+              getSafeSpawn(
+                null
+              );
+            resetPlayer
+              (hostSpawn
+                .x,
+                hostSpawn
+                .y
+              );
+            const
+              joinSpawn =
+              getSafeSpawn(
+                hostSpawn
+              );
+            conn.send({
+              type: 'init',
+              world: obstacles,
+              startX: joinSpawn
+                .x,
+              startY: joinSpawn
+                .y
             });
-          setupConn();
-        }
-      });
-      peer.on('call', (c) => {
-        if (audioReadyPromise) {
-          audioReadyPromise.then((
-            stream) => {
-            c.answer(
-              stream
-            );
-            handleIncomingStream
-              (c);
+            start
+              ();
+            setupAudio().then((
+              stream) => {
+              if (stream &&
+                conn && conn
+                .peer) {
+                const c =
+                  peer.call(
+                    conn
+                    .peer,
+                    stream);
+                handleIncomingStream
+                  (
+                    c
+                  ); // Use the same helper function from above
+              }
+            });
           });
-        } else {
-          // Fallback if setupAudio wasn't called yet
-          setupAudio().then((
-            stream) => {
-            c.answer(stream);
-            handleIncomingStream
-              (c);
-          });
-        }
-      });
-      
-      
-      peer.on('disconnected',
-        handleOpponentDisconnect
-      );
+        setupConn();
+      }
+    });
+    peer.on('call', (c) => {
+      if (audioReadyPromise) {
+        audioReadyPromise.then((
+          stream) => {
+          c.answer(
+            stream
+          );
+          handleIncomingStream
+            (c);
+        });
+      } else {
+        // Fallback if setupAudio wasn't called yet
+        setupAudio().then((
+          stream) => {
+          c.answer(stream);
+          handleIncomingStream
+            (c);
+        });
+      }
+    });
+    
+    
+    peer.on('disconnected',
+      handleOpponentDisconnect
+    );
     }
     
     function handleIncomingStream(
@@ -762,15 +777,34 @@
     let audioReadyPromise = null;
     
     function setupAudio() {
+      const audioConstraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+          sampleRate: 22050
+        }
+      };
+      
       audioReadyPromise = navigator
-        .mediaDevices
-        .getUserMedia({ audio: true })
+        .mediaDevices.getUserMedia(
+          audioConstraints)
         .then(s => {
           localStream = s;
           localStream
             .getAudioTracks()[0]
             .enabled =
             false; // Start muted
+          
+          
+          const track = localStream
+            .getAudioTracks()[0];
+          if (track.contentHint) {
+            track.contentHint =
+              'speech';
+          }
+          
           return s;
         })
         .catch(e => {
@@ -780,6 +814,7 @@
           localStream = null;
           return null;
         });
+      
       return audioReadyPromise;
     }
     
@@ -790,7 +825,7 @@
       
       if (localStream && localStream
         .getAudioTracks().length > 0
-        ) {
+      ) {
         const track = localStream
           .getAudioTracks()[0];
         
@@ -798,7 +833,6 @@
           'ended') {
           localStream = null;
         } else {
-          // Normal toggle behavior
           track.enabled = !track
             .enabled;
           micBtn.classList.toggle(
@@ -807,21 +841,38 @@
         }
       }
       
+      // Optimized constraints to reduce lag
+      const audioConstraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1, // Mono uses less bandwidth
+          sampleRate: 22050 // Lower sample rate for speech clarity without bloat
+        }
+      };
+      
       try {
         const stream = await navigator
-          .mediaDevices
-        .getUserMedia({ audio: true });
+          .mediaDevices.getUserMedia(
+            audioConstraints);
         localStream = stream;
         const track = localStream
           .getAudioTracks()[0];
-      
+        
+        // Set content hint to prioritize speech over high-fidelity music
+        if (track.contentHint) {
+          track.contentHint =
+            'speech';
+        }
+        
         track.onended = () => {
           localStream = null;
           micBtn.classList.remove(
             'on');
           console.log(
             "Mic hardware disconnected or permission revoked."
-            );
+          );
         };
         
         track.enabled = true;
@@ -829,6 +880,7 @@
         
         if (peer && conn && conn
           .open) {
+          // PeerJS call uses the media stream independently of the data channel
           const callObj = peer.call(
             conn.peer, localStream);
           handleIncomingStream(
@@ -838,8 +890,6 @@
       } catch (err) {
         console.error(
           "Mic access error:", err);
-        
-        // Reset UI if it failed
         micBtn.classList.remove('on');
         localStream = null;
         
@@ -849,19 +899,20 @@
           'PermissionDeniedError') {
           alert(
             "Microphone access is blocked! Please click the Lock icon (🔒) in your browser's address bar, allow the microphone, and Try again."
-            );
+          );
         } else if (err.name ===
           'NotFoundError') {
           alert(
             "No microphone detected."
-            );
+          );
         } else {
           alert(
             "Could not access the microphone."
-            );
+          );
         }
       }
     }
+    
     
     /* --- WORLD & SPAWN LOGIC --- */
     function genWorld() {
