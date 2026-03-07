@@ -359,7 +359,6 @@
         .toString());
     }
     
-     
     window.addEventListener(
       'beforeunload', () => {
         if (peer) peer.destroy();
@@ -462,45 +461,78 @@
               });
               start
                 ();
-              setupAudio
-                ();
+              setupAudio().then((
+                stream) => {
+                if (stream &&
+                  conn && conn
+                  .peer) {
+                  const c =
+                    peer.call(
+                      conn
+                      .peer,
+                      stream);
+                  handleIncomingStream
+                    (
+                      c
+                    ); // Use the same helper function from above
+                }
+              });
             });
           setupConn();
         }
       });
       peer.on('call', (c) => {
-        c.answer(
-          localStream
-        );
-        c.on('stream', rs => {
-          const audioEl =
-            document
-            .getElementById(
-              'remote-audio');
-          if (audioEl
-            .srcObject !== rs) {
-            audioEl.srcObject =
-              rs;
-            audioEl.play()
-              .catch(e =>
-                console.error(
-                  "Audio play error:",
-                  e));
-          }
-        });
-        
+        if (audioReadyPromise) {
+          audioReadyPromise.then((
+            stream) => {
+            c.answer(
+              stream
+            );
+            handleIncomingStream
+              (c);
+          });
+        } else {
+          // Fallback if setupAudio wasn't called yet
+          setupAudio().then((
+            stream) => {
+            c.answer(stream);
+            handleIncomingStream
+              (c);
+          });
+        }
       });
+      
+      
       peer.on('disconnected',
         handleOpponentDisconnect
       );
     }
     
+    function handleIncomingStream(
+      callObj) {
+      callObj.on('stream', rs => {
+        const audioEl = document
+          .getElementById(
+            'remote-audio');
+        if (audioEl.srcObject !==
+          rs) {
+          audioEl.srcObject = rs;
+          audioEl.play().catch(e =>
+            console.error(
+              "Audio play error:",
+              e));
+        }
+      });
+    }
+    
+    
     function joinGame() {
       const id = document
         .getElementById('join-id')
         .value;
-      if (id.length != 6){
-        document.getElementById('join-id').focus()
+      if (id.length != 6) {
+        document.getElementById(
+          'join-id').focus()
         return;
       }
       
@@ -517,7 +549,7 @@
             "JOIN GAME";
           alert(
             "Connection timed out. The host took too long to respond."
-            );
+          );
           if (peer) peer.destroy();
         }, 20000);
       
@@ -525,7 +557,7 @@
       peer.on('error', (err) => {
         clearTimeout(
           connectionTimeout
-          ); // Stop the timer
+        ); // Stop the timer
         joinBtn.innerText =
           "JOIN GAME";
         alert("Error Connecting: " +
@@ -543,14 +575,12 @@
       });
       
       peer.on('call', (c) => {
-        c.answer(localStream);
-        c.on('stream', rs => {
-          document
-            .getElementById(
-              'remote-audio')
-            .srcObject = rs;
-        });
+        
+        c.answer(localStream ||
+          undefined);
+        handleIncomingStream(c);
       });
+      
     }
     
     
@@ -729,60 +759,108 @@
       updateHUD();
     }
     
+    let audioReadyPromise = null;
     
     function setupAudio() {
-      navigator.mediaDevices
+      audioReadyPromise = navigator
+        .mediaDevices
         .getUserMedia({ audio: true })
         .then(s => {
           localStream = s;
           localStream
-            .getAudioTracks()[
-              0]
+            .getAudioTracks()[0]
             .enabled =
-            false;
-          if (conn && conn
-            .peer) {
-            const c =
-              peer
-              .call(
-                conn
-                .peer,
-                s);
-            c.on('stream',
-              rs => {
-                document
-                  .getElementById(
-                    'remote-audio'
-                  )
-                  .srcObject =
-                  rs;
-              });
-          }
+            false; // Start muted
+          return s;
         })
         .catch(e => {
           console.log(
             "Mic Denied/Unavailable. Listener mode only."
           );
-          localStream =
-            null;
+          localStream = null;
+          return null;
         });
+      return audioReadyPromise;
     }
     
-    function toggleMic() {
-      if (!localStream) {
-        alert(
-          "Microphone access was denied or not found."
-        );
-        return;
+    
+    async function toggleMic() {
+      const micBtn = document
+        .getElementById('mic-btn');
+      
+      if (localStream && localStream
+        .getAudioTracks().length > 0
+        ) {
+        const track = localStream
+          .getAudioTracks()[0];
+        
+        if (track.readyState ===
+          'ended') {
+          localStream = null;
+        } else {
+          // Normal toggle behavior
+          track.enabled = !track
+            .enabled;
+          micBtn.classList.toggle(
+            'on', track.enabled);
+          return;
+        }
       }
-      const track = localStream
-        .getAudioTracks()[0];
-      track.enabled = !track
-        .enabled;
-      document.getElementById(
-          'mic-btn').classList
-        .toggle('on', track
-          .enabled);
+      
+      try {
+        const stream = await navigator
+          .mediaDevices
+        .getUserMedia({ audio: true });
+        localStream = stream;
+        const track = localStream
+          .getAudioTracks()[0];
+      
+        track.onended = () => {
+          localStream = null;
+          micBtn.classList.remove(
+            'on');
+          console.log(
+            "Mic hardware disconnected or permission revoked."
+            );
+        };
+        
+        track.enabled = true;
+        micBtn.classList.add('on');
+        
+        if (peer && conn && conn
+          .open) {
+          const callObj = peer.call(
+            conn.peer, localStream);
+          handleIncomingStream(
+            callObj);
+        }
+        
+      } catch (err) {
+        console.error(
+          "Mic access error:", err);
+        
+        // Reset UI if it failed
+        micBtn.classList.remove('on');
+        localStream = null;
+        
+        if (err.name ===
+          'NotAllowedError' || err
+          .name ===
+          'PermissionDeniedError') {
+          alert(
+            "Microphone access is blocked! Please click the Lock icon (🔒) in your browser's address bar, allow the microphone, and Try again."
+            );
+        } else if (err.name ===
+          'NotFoundError') {
+          alert(
+            "No microphone detected."
+            );
+        } else {
+          alert(
+            "Could not access the microphone."
+            );
+        }
+      }
     }
     
     /* --- WORLD & SPAWN LOGIC --- */
@@ -1988,10 +2066,15 @@
       if (code == '...') return;
       navigator.clipboard
         .writeText(code);
-        document.getElementById('showCopied').innerHTML = "CODE COPIED!"
-      setInterval(()=>{
-        document.getElementById('showCopied').innerHTML = 'TAP CODE TO COPY'
-      },1500)
+      document.getElementById(
+          'showCopied').innerHTML =
+        "CODE COPIED!"
+      setInterval(() => {
+        document.getElementById(
+            'showCopied')
+          .innerHTML =
+          'TAP CODE TO COPY'
+      }, 1500)
       
     }
     
