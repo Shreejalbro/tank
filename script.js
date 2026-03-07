@@ -359,23 +359,40 @@
         .toString());
     }
     
+     
+    window.addEventListener(
+      'beforeunload', () => {
+        if (peer) peer.destroy();
+      });
+    
     function initPeer(id) {
       if (peer) peer.destroy();
       const peerConfig = {
         config: {
           iceServers: [
           {
-            urls: 'stun:stun.l.google.com:19302'
+            urls: "stun:stun.relay.metered.ca:80",
           },
           {
-            urls: [
-              'turn:openrelay.metered.ca:80',
-              'turn:openrelay.metered.ca:443',
-              'turn:openrelay.metered.ca:443?transport=tcp'
-            ],
-            username: 'openrelayproject',
-            credential: 'openrelayprojectsecret'
-          }],
+            urls: "turn:asia.relay.metered.ca:80",
+            username: "a277891fd64ef0a705206766",
+            credential: "Tu0cfABPhjoPT4Ts",
+          },
+          {
+            urls: "turn:asia.relay.metered.ca:80?transport=tcp",
+            username: "a277891fd64ef0a705206766",
+            credential: "Tu0cfABPhjoPT4Ts",
+          },
+          {
+            urls: "turn:asia.relay.metered.ca:443",
+            username: "a277891fd64ef0a705206766",
+            credential: "Tu0cfABPhjoPT4Ts",
+          },
+          {
+            urls: "turns:asia.relay.metered.ca:443?transport=tcp",
+            username: "a277891fd64ef0a705206766",
+            credential: "Tu0cfABPhjoPT4Ts",
+          }, ],
           // REMOVED iceTransportPolicy: 'relay' 
           // This allows PeerJS to choose the BEST path (STUN first, TURN as backup)
         }
@@ -455,28 +472,23 @@
         c.answer(
           localStream
         );
-        c.on('stream',
-          rs => {
-            const
-              audioEl =
-              document
-              .getElementById(
-                'remote-audio'
-              );
-            audioEl
-              .srcObject =
+        c.on('stream', rs => {
+          const audioEl =
+            document
+            .getElementById(
+              'remote-audio');
+          if (audioEl
+            .srcObject !== rs) {
+            audioEl.srcObject =
               rs;
-            audioEl
-              .play()
-              .catch(
-                e =>
-                console
-                .log(
+            audioEl.play()
+              .catch(e =>
+                console.error(
                   "Audio play error:",
-                  e
-                )
-              );
-          });
+                  e));
+          }
+        });
+        
       });
       peer.on('disconnected',
         handleOpponentDisconnect
