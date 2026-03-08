@@ -245,6 +245,8 @@
         'gameCanvas');
     const ctx = canvas.getContext(
       '2d');
+    let currentCall = null;
+    
     const ui = document
       .getElementById('ui-layer');
     let powerups = [];
@@ -476,6 +478,7 @@
               });
               start
                 ();
+              // Inside initPeer, when the Host calls the Client:
               setupAudio().then((
                 stream) => {
                 if (stream &&
@@ -486,12 +489,47 @@
                       conn
                       .peer,
                       stream);
+                  currentCall
+                    =
+                    c; // Save the reference
                   handleIncomingStream
-                    (
-                      c
-                    ); // Use the same helper function from above
+                    (c);
                 }
               });
+              
+              // Inside initPeer, when receiving a call:
+              peer.on('call', (
+                c) => {
+                  currentCall =
+                    c; // Save the reference
+                  
+                  if (
+                    audioReadyPromise
+                    ) {
+                    audioReadyPromise
+                      .then((
+                        stream
+                        ) => {
+                        c.answer(
+                          stream
+                          );
+                        handleIncomingStream
+                          (c);
+                      });
+                  } else {
+                    setupAudio()
+                      .then((
+                        stream
+                        ) => {
+                        c.answer(
+                          stream
+                          );
+                        handleIncomingStream
+                          (c);
+                      });
+                  }
+                });
+              
             });
           setupConn();
         }
@@ -535,7 +573,7 @@
           audioEl.play().catch(e =>
             console.error(
               "Playback error:", e
-              ));
+            ));
         }
       });
     }
@@ -842,14 +880,14 @@
         }
       }
       
-      // Optimized constraints to reduce lag
       const audioConstraints = {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          channelCount: 1, // Mono uses less bandwidth
-          sampleRate: 22050 // Lower sample rate for speech clarity without bloat
+          channelCount: 1
+          // Note: I removed sampleRate. Hardcoding sample rates can sometimes 
+          // cause WebRTC negotiation to fail on certain hardware.
         }
       };
       
@@ -861,7 +899,6 @@
         const track = localStream
           .getAudioTracks()[0];
         
-        // Set content hint to prioritize speech over high-fidelity music
         if (track.contentHint) {
           track.contentHint =
             'speech';
@@ -879,13 +916,29 @@
         track.enabled = true;
         micBtn.classList.add('on');
         
-        if (peer && conn && conn
-          .open) {
-          // PeerJS call uses the media stream independently of the data channel
-          const callObj = peer.call(
-            conn.peer, localStream);
+        if (currentCall && currentCall
+          .peerConnection) {
+          const sender = currentCall
+            .peerConnection
+            .getSenders().find(s => s
+              .track && s.track
+              .kind === 'audio');
+          if (sender) {
+            sender.replaceTrack(
+              track
+            ); // Swap in the new mic seamlessly
+          } else {
+            currentCall.peerConnection
+              .addTrack(track,
+                localStream);
+          }
+        } else if (peer && conn &&
+          conn.open) {
+          // Fallback: Only make a new call if one doesn't exist yet
+          currentCall = peer.call(conn
+            .peer, localStream);
           handleIncomingStream(
-            callObj);
+            currentCall);
         }
         
       } catch (err) {
@@ -893,7 +946,6 @@
           "Mic access error:", err);
         micBtn.classList.remove('on');
         localStream = null;
-        
         if (err.name ===
           'NotAllowedError' || err
           .name ===
@@ -913,6 +965,7 @@
         }
       }
     }
+    
     
     
     /* --- WORLD & SPAWN LOGIC --- */
