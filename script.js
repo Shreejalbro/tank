@@ -367,6 +367,7 @@
       });
     
     function initPeer(id) {
+      // 1. Cleanup old state to prevent memory leaks and zombie streams
       if (peer) peer.destroy();
       if (localStream) {
         localStream.getTracks().forEach(
@@ -377,38 +378,32 @@
         if (micBtn) micBtn.classList
           .remove('on');
       }
+      
       const peerConfig = {
         config: {
           iceServers: [
-          {
-            urls: "stun:stun.relay.metered.ca:80",
-          },
-          {
-            urls: "turn:asia.relay.metered.ca:80",
-            username: "a277891fd64ef0a705206766",
-            credential: "Tu0cfABPhjoPT4Ts",
-          },
-          {
-            urls: "turn:asia.relay.metered.ca:80?transport=tcp",
-            username: "a277891fd64ef0a705206766",
-            credential: "Tu0cfABPhjoPT4Ts",
-          },
-          {
-            urls: "turn:asia.relay.metered.ca:443",
-            username: "a277891fd64ef0a705206766",
-            credential: "Tu0cfABPhjoPT4Ts",
-          },
-          {
-            urls: "turns:asia.relay.metered.ca:443?transport=tcp",
-            username: "a277891fd64ef0a705206766",
-            credential: "Tu0cfABPhjoPT4Ts",
-          }, ],
-          // REMOVED iceTransportPolicy: 'relay' 
+            { urls: "stun:stun.relay.metered.ca:80" },
+            { urls: "turn:asia.relay.metered.ca:80",
+              username: "a277891fd64ef0a705206766",
+              credential: "Tu0cfABPhjoPT4Ts" },
+            { urls: "turn:asia.relay.metered.ca:80?transport=tcp",
+              username: "a277891fd64ef0a705206766",
+              credential: "Tu0cfABPhjoPT4Ts" },
+            { urls: "turn:asia.relay.metered.ca:443",
+              username: "a277891fd64ef0a705206766",
+              credential: "Tu0cfABPhjoPT4Ts" },
+            { urls: "turns:asia.relay.metered.ca:443?transport=tcp",
+              username: "a277891fd64ef0a705206766",
+              credential: "Tu0cfABPhjoPT4Ts" },
+          ],
           iceCandidatePoolSize: 10,
         },
         debug: 1
-      }
+      };
+      
       peer = new Peer(id, peerConfig);
+      
+      // --- ERROR HANDLING ---
       peer.on('error', (err) => {
         console.error(
           "PeerJS Error Type:",
@@ -416,149 +411,137 @@
         if (err.type ===
           'unavailable-id') {
           alert(
-            "ID already taken!");
+          "ID already taken!");
         } else if (err.type ===
           'network') {
           alert(
             "Network blocked the P2P connection. Try a different Wi-Fi."
-          );
+            );
         }
       });
       
+      // --- INITIALIZATION ---
       peer.on('open', (id) => {
-        document
+        const codeDisplay = document
           .getElementById(
-            'code-display'
-          )
-          .innerText =
-          id;
+            'code-display');
+        if (codeDisplay) codeDisplay
+          .innerText = id;
       });
-      peer.on('connection', (
-        c) => {
-        conn = c;
+      
+      // --- VOICE CALL LISTENER (Top-level prevents rematch bugs) ---
+      peer.on('call', (c) => {
+        currentCall =
+        c; // Save reference for the UI toggle
+        const answerCall = (
+          stream) => {
+            c.answer(stream);
+            handleIncomingStream(c);
+          };
         
+        if (audioReadyPromise) {
+          audioReadyPromise.then(
+            answerCall);
+        } else {
+          setupAudio().then(
+            answerCall);
+        }
+      });
+      
+      // --- DATA CONNECTION & GAME LOGIC ---
+      peer.on('connection', (c) => {
+        conn = c;
         if (conn.dataChannel) {
           conn.dataChannel
             .priority = 'high';
         }
+        
         if (isHost) {
-          document
-            .getElementById(
-              'host-status'
-            )
+          const hostStatus =
+            document.getElementById(
+              'host-status');
+          if (hostStatus) hostStatus
             .innerText =
             "Generating World...";
-          conn.on('open',
-            () => {
-              genWorld
-                ();
-              const
-                hostSpawn =
-                getSafeSpawn(
-                  null
+          
+          // Runs when the specific peer connection opens
+          conn.on('open', () => {
+            genWorld();
+            const hostSpawn =
+              getSafeSpawn(
+              null);
+            resetPlayer(
+              hostSpawn.x,
+              hostSpawn.y);
+            const joinSpawn =
+              getSafeSpawn(
+                hostSpawn);
+            
+            // Sync world and positions to client
+            conn.send({
+              type: 'init',
+              world: obstacles,
+              startX: joinSpawn
+                .x,
+              startY: joinSpawn
+                .y
+            });
+            
+            start
+          (); // Start the game loop
+            
+            // AUDIO LOGIC: Only initiate a call if one doesn't already exist from Match 1
+            if (currentCall &&
+              currentCall.open
+              ) {
+              console.log(
+                "Audio connected. Resyncing UI..."
                 );
-              resetPlayer
-                (hostSpawn
-                  .x,
-                  hostSpawn
-                  .y
-                );
-              const
-                joinSpawn =
-                getSafeSpawn(
-                  hostSpawn
-                );
-              conn.send({
-                type: 'init',
-                world: obstacles,
-                startX: joinSpawn
-                  .x,
-                startY: joinSpawn
-                  .y
-              });
-              start
-                ();
-              // Inside initPeer, when the Host calls the Client:
-              setupAudio().then((
-                stream) => {
-                if (stream &&
-                  conn && conn
-                  .peer) {
-                  const c =
-                    peer.call(
-                      conn
-                      .peer,
-                      stream);
-                  currentCall
-                    =
-                    c; // Save the reference
-                  handleIncomingStream
-                    (c);
-                }
-              });
-              
-              // Inside initPeer, when receiving a call:
-              peer.on('call', (
-                c) => {
-                  currentCall =
-                    c; // Save the reference
-                  
+              syncMicUI();
+            } else {
+              setupAudio().then(
+                (stream) => {
                   if (
-                    audioReadyPromise
+                    stream &&
+                    conn &&
+                    conn.peer
                     ) {
-                    audioReadyPromise
-                      .then((
+                    currentCall
+                      = peer
+                      .call(
+                        conn
+                        .peer,
                         stream
-                        ) => {
-                        c.answer(
-                          stream
-                          );
-                        handleIncomingStream
-                          (c);
-                      });
-                  } else {
-                    setupAudio()
-                      .then((
-                        stream
-                        ) => {
-                        c.answer(
-                          stream
-                          );
-                        handleIncomingStream
-                          (c);
-                      });
+                        );
+                    handleIncomingStream
+                      (
+                        currentCall);
                   }
                 });
-              
-            });
+            }
+          });
           setupConn();
         }
       });
-      peer.on('call', (c) => {
-        if (audioReadyPromise) {
-          audioReadyPromise.then((
-            stream) => {
-            c.answer(
-              stream
-            );
-            handleIncomingStream
-              (c);
-          });
-        } else {
-          // Fallback if setupAudio wasn't called yet
-          setupAudio().then((
-            stream) => {
-            c.answer(stream);
-            handleIncomingStream
-              (c);
-          });
-        }
-      });
-      
       
       peer.on('disconnected',
-        handleOpponentDisconnect
-      );
+        handleOpponentDisconnect);
+    }
+    
+    // Keep the Mic Button visually in sync with the audio track
+    function syncMicUI() {
+      const micBtn = document
+        .getElementById('mic-btn');
+      if (!micBtn) return;
+      // Check if the track is actually enabled
+      const isEnabled = localStream &&
+        localStream.getAudioTracks()[0]
+        ?.enabled;
+      if (isEnabled) {
+        micBtn.classList.add('on');
+      } else {
+        micBtn.classList.remove('on');
+      }
     }
     
     function handleIncomingStream(
