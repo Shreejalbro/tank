@@ -406,121 +406,121 @@
         },
         debug: 1
       }
-    peer = new Peer(id, peerConfig);
-    peer.on('error', (err) => {
-      console.error(
-        "PeerJS Error Type:",
-        err.type);
-      if (err.type ===
-        'unavailable-id') {
-        alert(
-          "ID already taken!");
-      } else if (err.type ===
-        'network') {
-        alert(
-          "Network blocked the P2P connection. Try a different Wi-Fi."
-        );
-      }
-    });
-    
-    peer.on('open', (id) => {
-      document
-        .getElementById(
-          'code-display'
-        )
-        .innerText =
-        id;
-    });
-    peer.on('connection', (
-      c) => {
-      conn = c;
+      peer = new Peer(id, peerConfig);
+      peer.on('error', (err) => {
+        console.error(
+          "PeerJS Error Type:",
+          err.type);
+        if (err.type ===
+          'unavailable-id') {
+          alert(
+            "ID already taken!");
+        } else if (err.type ===
+          'network') {
+          alert(
+            "Network blocked the P2P connection. Try a different Wi-Fi."
+          );
+        }
+      });
       
-      if (conn.dataChannel) {
-        conn.dataChannel
-          .priority = 'high';
-      }
-      if (isHost) {
+      peer.on('open', (id) => {
         document
           .getElementById(
-            'host-status'
+            'code-display'
           )
           .innerText =
-          "Generating World...";
-        conn.on('open',
-          () => {
-            genWorld
-              ();
-            const
-              hostSpawn =
-              getSafeSpawn(
-                null
-              );
-            resetPlayer
-              (hostSpawn
-                .x,
-                hostSpawn
-                .y
-              );
-            const
-              joinSpawn =
-              getSafeSpawn(
-                hostSpawn
-              );
-            conn.send({
-              type: 'init',
-              world: obstacles,
-              startX: joinSpawn
-                .x,
-              startY: joinSpawn
-                .y
+          id;
+      });
+      peer.on('connection', (
+        c) => {
+        conn = c;
+        
+        if (conn.dataChannel) {
+          conn.dataChannel
+            .priority = 'high';
+        }
+        if (isHost) {
+          document
+            .getElementById(
+              'host-status'
+            )
+            .innerText =
+            "Generating World...";
+          conn.on('open',
+            () => {
+              genWorld
+                ();
+              const
+                hostSpawn =
+                getSafeSpawn(
+                  null
+                );
+              resetPlayer
+                (hostSpawn
+                  .x,
+                  hostSpawn
+                  .y
+                );
+              const
+                joinSpawn =
+                getSafeSpawn(
+                  hostSpawn
+                );
+              conn.send({
+                type: 'init',
+                world: obstacles,
+                startX: joinSpawn
+                  .x,
+                startY: joinSpawn
+                  .y
+              });
+              start
+                ();
+              setupAudio().then((
+                stream) => {
+                if (stream &&
+                  conn && conn
+                  .peer) {
+                  const c =
+                    peer.call(
+                      conn
+                      .peer,
+                      stream);
+                  handleIncomingStream
+                    (
+                      c
+                    ); // Use the same helper function from above
+                }
+              });
             });
-            start
-              ();
-            setupAudio().then((
-              stream) => {
-              if (stream &&
-                conn && conn
-                .peer) {
-                const c =
-                  peer.call(
-                    conn
-                    .peer,
-                    stream);
-                handleIncomingStream
-                  (
-                    c
-                  ); // Use the same helper function from above
-              }
-            });
+          setupConn();
+        }
+      });
+      peer.on('call', (c) => {
+        if (audioReadyPromise) {
+          audioReadyPromise.then((
+            stream) => {
+            c.answer(
+              stream
+            );
+            handleIncomingStream
+              (c);
           });
-        setupConn();
-      }
-    });
-    peer.on('call', (c) => {
-      if (audioReadyPromise) {
-        audioReadyPromise.then((
-          stream) => {
-          c.answer(
-            stream
-          );
-          handleIncomingStream
-            (c);
-        });
-      } else {
-        // Fallback if setupAudio wasn't called yet
-        setupAudio().then((
-          stream) => {
-          c.answer(stream);
-          handleIncomingStream
-            (c);
-        });
-      }
-    });
-    
-    
-    peer.on('disconnected',
-      handleOpponentDisconnect
-    );
+        } else {
+          // Fallback if setupAudio wasn't called yet
+          setupAudio().then((
+            stream) => {
+            c.answer(stream);
+            handleIncomingStream
+              (c);
+          });
+        }
+      });
+      
+      
+      peer.on('disconnected',
+        handleOpponentDisconnect
+      );
     }
     
     function handleIncomingStream(
@@ -529,16 +529,17 @@
         const audioEl = document
           .getElementById(
             'remote-audio');
-        if (audioEl.srcObject !==
-          rs) {
+        if (audioEl.srcObject
+          ?.id !== rs.id) {
           audioEl.srcObject = rs;
           audioEl.play().catch(e =>
             console.error(
-              "Audio play error:",
-              e));
+              "Playback error:", e
+              ));
         }
       });
     }
+    
     
     
     function joinGame() {
