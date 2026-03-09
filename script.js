@@ -498,7 +498,7 @@
             start
               (); // Start the game loop
             
-            // AUDIO LOGIC: Only initiate a call if one doesn't already exist from Match 1
+           
             if (currentCall &&
               currentCall.open
             ) {
@@ -690,7 +690,6 @@
             .bx, d.by, false);
         }
         
-        // (Duplicate 'hit' block removed here. Kept the dynamic damage version below.)
         if (d.type === 'hit') {
           takeDamage(d.dmg);
           SoundFX.hit(player.x,
@@ -753,7 +752,7 @@
       const now = Date.now();
       
       if (isHost && powerups.length <
-        4 && Math.random() < 0.005) {
+        7 && Math.random() < 0.005) {
         const pool = ['heal',
           'shield',
           'unlimited', 'missile'
@@ -1618,8 +1617,8 @@
           if (Math.hypot(b.x - o.x, b
               .y - o.y) < o.r + 5) {
             // Determine damage
-            let dmg = b.isMissile ? 40 :
-              15;
+            let dmg = b.isMissile ? 25 :
+              14;
             
             // Damage the rock locally
             damageRock(o.id, dmg, b.x, b
@@ -1674,7 +1673,7 @@
             conn.send({
               type: 'hit',
               dmg: b.isMissile ?
-                15 : 4
+                25 : 14
             });
             particles.push({
               x: b.x,
