@@ -383,18 +383,26 @@
         config: {
           iceServers: [
             { urls: "stun:stun.relay.metered.ca:80" },
-            { urls: "turn:asia.relay.metered.ca:80",
+            {
+              urls: "turn:asia.relay.metered.ca:80",
               username: "a277891fd64ef0a705206766",
-              credential: "Tu0cfABPhjoPT4Ts" },
-            { urls: "turn:asia.relay.metered.ca:80?transport=tcp",
+              credential: "Tu0cfABPhjoPT4Ts"
+            },
+            {
+              urls: "turn:asia.relay.metered.ca:80?transport=tcp",
               username: "a277891fd64ef0a705206766",
-              credential: "Tu0cfABPhjoPT4Ts" },
-            { urls: "turn:asia.relay.metered.ca:443",
+              credential: "Tu0cfABPhjoPT4Ts"
+            },
+            {
+              urls: "turn:asia.relay.metered.ca:443",
               username: "a277891fd64ef0a705206766",
-              credential: "Tu0cfABPhjoPT4Ts" },
-            { urls: "turns:asia.relay.metered.ca:443?transport=tcp",
+              credential: "Tu0cfABPhjoPT4Ts"
+            },
+            {
+              urls: "turns:asia.relay.metered.ca:443?transport=tcp",
               username: "a277891fd64ef0a705206766",
-              credential: "Tu0cfABPhjoPT4Ts" },
+              credential: "Tu0cfABPhjoPT4Ts"
+            },
           ],
           iceCandidatePoolSize: 10,
         },
@@ -411,12 +419,12 @@
         if (err.type ===
           'unavailable-id') {
           alert(
-          "ID already taken!");
+            "ID already taken!");
         } else if (err.type ===
           'network') {
           alert(
             "Network blocked the P2P connection. Try a different Wi-Fi."
-            );
+          );
         }
       });
       
@@ -432,12 +440,12 @@
       // --- VOICE CALL LISTENER (Top-level prevents rematch bugs) ---
       peer.on('call', (c) => {
         currentCall =
-        c; // Save reference for the UI toggle
+          c; // Save reference for the UI toggle
         const answerCall = (
           stream) => {
-            c.answer(stream);
-            handleIncomingStream(c);
-          };
+          c.answer(stream);
+          handleIncomingStream(c);
+        };
         
         if (audioReadyPromise) {
           audioReadyPromise.then(
@@ -469,7 +477,7 @@
             genWorld();
             const hostSpawn =
               getSafeSpawn(
-              null);
+                null);
             resetPlayer(
               hostSpawn.x,
               hostSpawn.y);
@@ -488,15 +496,15 @@
             });
             
             start
-          (); // Start the game loop
+              (); // Start the game loop
             
             // AUDIO LOGIC: Only initiate a call if one doesn't already exist from Match 1
             if (currentCall &&
               currentCall.open
-              ) {
+            ) {
               console.log(
                 "Audio connected. Resyncing UI..."
-                );
+              );
               syncMicUI();
             } else {
               setupAudio().then(
@@ -505,17 +513,18 @@
                     stream &&
                     conn &&
                     conn.peer
-                    ) {
+                  ) {
                     currentCall
                       = peer
                       .call(
                         conn
                         .peer,
                         stream
-                        );
+                      );
                     handleIncomingStream
                       (
-                        currentCall);
+                        currentCall
+                      );
                   }
                 });
             }
@@ -631,27 +640,59 @@
           resetGameParams
             (); // This is the key call
           start();
-          setupAudio();
+          
+          if (typeof localStream !==
+            'undefined' &&
+            localStream) {
+            
+            const micBtn = document
+              .getElementById(
+                'mic-btn');
+            if (micBtn) {
+              
+              micBtn.onclick =
+                toggleMic;
+              if (localStream
+                .getAudioTracks()
+                .length > 0) {
+                const isEnabled =
+                  localStream
+                  .getAudioTracks()[
+                    0].enabled;
+                if (isEnabled) {
+                  micBtn.classList
+                    .add('on');
+                } else {
+                  micBtn.classList
+                    .remove('on');
+                }
+              }
+            }
+          } else {
+            setupAudio();
+          }
         }
         
         if (d.type ===
-          'spawn_powerup') powerups
-          .push(d.p);
+          'spawn_powerup') {
+          powerups.push(d.p);
+        }
+        
         if (d.type ===
-          'pickup_powerup')
+          'pickup_powerup') {
           powerups = powerups
-          .filter(p => p.id !== d
-            .id);
+            .filter(p => p.id !== d
+              .id);
+        }
+        
         if (d.type === 'rock_hit') {
           damageRock(d.id, d.dmg, d
-            .bx, d.by, false
-          );
+            .bx, d.by, false);
         }
         
+        // (Duplicate 'hit' block removed here. Kept the dynamic damage version below.)
         if (d.type === 'hit') {
-          takeDamage(d
-            .dmg
-          ); // Modified to accept dynamic damage
+          takeDamage(d.dmg);
           SoundFX.hit(player.x,
             player.y);
         }
@@ -668,7 +709,7 @@
           
           enemy.angle = d.angle;
           enemy.turretAngle = d
-            .turretAngle
+            .turretAngle;
           enemy.bullets = d.b;
           if (!enemy.dead) enemy
             .hp = d.hp;
@@ -679,22 +720,15 @@
             .buffs.u;
           enemy.hasMissile = d.buffs
             .m;
-          
-          
         }
         
         if (d.type === 'fire') {
           SoundFX.shoot(d.x, d.y);
         }
         
-        if (d.type === 'hit') {
-          takeDamage(10);
-          SoundFX.hit(player.x,
-            player.y);
-        }
-        
-        if (d.type === 'died')
+        if (d.type === 'died') {
           killEnemy();
+        }
         
         if (d.type ===
           'rematch_req') {
@@ -702,8 +736,10 @@
           checkRematch();
         }
         
-        if (d.type === 'quit')
-          handleOpponentDisconnect();
+        if (d.type === 'quit') {
+          handleOpponentDisconnect
+            ();
+        }
       });
       
       conn.on('close',
@@ -844,33 +880,32 @@
     async function toggleMic() {
       const micBtn = document
         .getElementById('mic-btn');
-      
       if (localStream && localStream
         .getAudioTracks().length > 0
-      ) {
+        ) {
         const track = localStream
           .getAudioTracks()[0];
         
-        if (track.readyState ===
+        if (track.readyState !==
           'ended') {
-          localStream = null;
-        } else {
           track.enabled = !track
             .enabled;
           micBtn.classList.toggle(
             'on', track.enabled);
+          syncTrackWithCall(track);
           return;
+        } else {
+          localStream =
+          null; 
         }
       }
-      
+    
       const audioConstraints = {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           channelCount: 1
-          // Note: I removed sampleRate. Hardcoding sample rates can sometimes 
-          // cause WebRTC negotiation to fail on certain hardware.
         }
       };
       
@@ -882,52 +917,25 @@
         const track = localStream
           .getAudioTracks()[0];
         
-        if (track.contentHint) {
-          track.contentHint =
-            'speech';
-        }
+        if (track.contentHint) track
+          .contentHint = 'speech';
         
         track.onended = () => {
           localStream = null;
-          micBtn.classList.remove(
-            'on');
-          console.log(
-            "Mic hardware disconnected or permission revoked."
-          );
+          if (micBtn) micBtn
+            .classList.remove('on');
         };
         
         track.enabled = true;
-        micBtn.classList.add('on');
-        
-        if (currentCall && currentCall
-          .peerConnection) {
-          const sender = currentCall
-            .peerConnection
-            .getSenders().find(s => s
-              .track && s.track
-              .kind === 'audio');
-          if (sender) {
-            sender.replaceTrack(
-              track
-            ); // Swap in the new mic seamlessly
-          } else {
-            currentCall.peerConnection
-              .addTrack(track,
-                localStream);
-          }
-        } else if (peer && conn &&
-          conn.open) {
-          // Fallback: Only make a new call if one doesn't exist yet
-          currentCall = peer.call(conn
-            .peer, localStream);
-          handleIncomingStream(
-            currentCall);
-        }
+        if (micBtn) micBtn.classList
+          .add('on');
+        syncTrackWithCall(track);
         
       } catch (err) {
         console.error(
           "Mic access error:", err);
-        micBtn.classList.remove('on');
+        if (micBtn) micBtn.classList
+          .remove('on');
         localStream = null;
         if (err.name ===
           'NotAllowedError' || err
@@ -949,7 +957,29 @@
       }
     }
     
-    
+    function syncTrackWithCall(track) {
+      if (currentCall && currentCall
+        .peerConnection) {
+        const pc = currentCall
+          .peerConnection;
+        const sender = pc.getSenders()
+          .find(s => s.track && s.track
+            .kind === 'audio');
+        
+        if (sender) {
+          sender.replaceTrack(track);
+        } else {
+          pc.addTrack(track,
+            localStream);
+        }
+      } else if (peer && conn && conn
+        .open) {
+        currentCall = peer.call(conn
+          .peer, localStream);
+        handleIncomingStream(
+          currentCall);
+      }
+    }
     
     /* --- WORLD & SPAWN LOGIC --- */
     function genWorld() {
